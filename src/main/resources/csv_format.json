@@ -2,12 +2,12 @@
 	"header": {
 	}, 
 	"data": {
-		"rowTypePosition": 0,
+		"rowTypePosition": 1,
 		"type0": {
-			"1": "column0"
+			"2": "column0"
 		},
 		"type1": {
-			"1": "column1"
+			"2": "column1"
 		}
 	}, 
 	"trailer": {

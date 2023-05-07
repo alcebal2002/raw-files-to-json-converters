@@ -47,7 +47,7 @@ public class CSVToJsonConverter {
         formatJson = new JSONObject(formatStringBuffer.toString());
         logger.info("formatJson: {}", formatJson);
 
-        rowTypePosition = formatJson.getJSONObject("data").getInt("rowTypePosition");
+        rowTypePosition = formatJson.getJSONObject("data").getInt("rowTypePosition") - 1;
 
         // Read the csv file and count the number of lines of the file
         int numberOfLines = 0;
@@ -102,17 +102,17 @@ public class CSVToJsonConverter {
                         (formatJson.getJSONObject(block)
                                 .has(dataValues[rowTypePosition])
                                 && formatJson.getJSONObject(block).getJSONObject(dataValues[rowTypePosition])
-                                        .has("" + i))
+                                        .has("" + (i + 1))
                                                 ? formatJson.getJSONObject(block)
                                                         .getJSONObject(dataValues[rowTypePosition])
-                                                        .getString("" + i)
-                                                : ("" + i),
+                                                        .getString("" + (i + 1))
+                                                : ("" + (i + 1))),
                         dataValues[i]);
             } else {
                 jsonObject.put(
-                        (formatJson.getJSONObject(block).has("" + i))
-                                ? formatJson.getJSONObject(block).getString("" + i)
-                                : ("" + i),
+                        (formatJson.getJSONObject(block).has("" + (i + 1)))
+                                ? formatJson.getJSONObject(block).getString("" + (i + 1))
+                                : ("" + (i + 1)),
                         dataValues[i]);
             }
         }
