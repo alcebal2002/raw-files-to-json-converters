@@ -2,11 +2,10 @@ package com.example;
 
 import java.time.LocalDate;
 
-import javax.validation.constraints.Size;
-
 import com.opencsv.bean.CsvBindByPosition;
 import com.opencsv.bean.CsvDate;
 import com.opencsv.bean.CsvNumber;
+import com.opencsv.bean.validators.*;
 
 import lombok.Data;
 
@@ -17,7 +16,7 @@ import lombok.Data;
 @Data
 public class TrailerBean {
     @CsvBindByPosition(position = 0, required = true)
-    @Size(min = 1, max = 1)
+    @PreAssignmentValidator(validator = MustMatchRegexExpression.class, paramString = "T")
     private String recordType;
 
     @CsvBindByPosition(position = 1, required = true)

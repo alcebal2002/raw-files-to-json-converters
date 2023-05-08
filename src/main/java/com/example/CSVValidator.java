@@ -1,15 +1,15 @@
 package com.example;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +18,6 @@ import com.opencsv.CSVReader;
 import com.opencsv.bean.CsvToBean;
 import com.opencsv.bean.CsvToBeanBuilder;
 import com.opencsv.exceptions.CsvException;
-import com.opencsv.exceptions.CsvValidationException;
 
 /**
  *
@@ -26,78 +25,92 @@ import com.opencsv.exceptions.CsvValidationException;
  */
 public class CSVValidator {
 
-    static final Logger logger = LoggerFactory.getLogger(CSVValidator.class);
-    static String csvFileName = "csv_sample.csv";
+    public static void main(String[] args) {
 
-    public static void main(String[] args) throws IllegalStateException, IOException, CsvException {
+        final Logger logger = LoggerFactory.getLogger(CSVValidator.class);
+        final String csvFileName = "csv_sample.csv";
+        final String delimiter = "\\|";
 
-        String delimiter = "\\|";
-        String config = "{" +
-                "    \"rowTypePosition\": 0," +
-                "    \"dataTypePosition\": 1," +
-                "    \"rowTypes\": {" +
-                "       \"H\": \"HeaderBean\"," +
-                "       \"T\": \"TrailerBean\"," +
-                "       \"D\": {" +
-                "           \"LOAN100\": \"Loan100Bean\"," +
-                "           \"LOAN108\": \"Loan108Bean\"," +
-                "           \"LOAN900\": \"Loan900Bean\"" +
-                "       }" +
+        final String config = "{" +
+                "  \"rowTypePosition\": 0," +
+                "  \"dataTypePosition\": 1," +
+                "  \"rowTypes\": {" +
+                "    \"H\": \"com.example.HeaderBean\"," +
+                "    \"T\": \"com.example.TrailerBean\"," +
+                "    \"D\": {" +
+                "      \"LOAN100\": \"com.example.Loan100Bean\"," +
+                "      \"LOAN108\": \"com.example.Loan108Bean\"," +
+                "      \"LOAN900\": \"com.example.Loan900Bean\"" +
                 "    }" +
+                "  }" +
                 "}";
 
         JSONObject jsonConfig = new JSONObject(config);
 
         logger.info("config: " + jsonConfig.toString(2));
 
+        JSONObject result = new JSONObject();
+        result.put("status", "OK");
+        result.put("errors", new JSONArray());
+
+        HashMap<String, List<String>> csvTypeMap = new HashMap<String, List<String>>();
+
         try (CSVReader reader = new CSVReader(
                 new FileReader(new File(CSVValidator.class.getClassLoader().getResource(csvFileName).getPath())))) {
             List<String[]> fullCsv = reader.readAll();
             fullCsv.forEach(csvLine -> {
-                System.out.println("Reading line: " + csvLine[0]);
-                String rowType = csvLine[0].split(delimiter)[0];
-                String dataType = csvLine[0].split(delimiter)[1];
+                String rowType = csvLine[0]
+                        .split(delimiter)[(int) jsonConfig.get("rowTypePosition")];
+                String dataType = csvLine[0]
+                        .split(delimiter)[(int) jsonConfig.get("dataTypePosition")];
                 String beanClass = rowType.equals("D")
                         ? (String) jsonConfig.getJSONObject("rowTypes").getJSONObject(rowType).get(dataType)
                         : (String) jsonConfig.getJSONObject("rowTypes").get(rowType);
-                System.out.println("Row Type: " + rowType + " -> Bean: " + beanClass);
+                logger.info("Line: \"" + csvLine[0] + "\" -> RowType: " + rowType + " -> Bean: " + beanClass);
+
+                csvTypeMap.computeIfAbsent(beanClass,
+                        k -> new ArrayList<>()).add(csvLine[0]);
             });
+        } catch (Exception e) {
+            logger.error("Exception: " + e.getClass() + " - " + e.getMessage());
+            result.put("status", "FAIL");
+            result.put("errors", result.getJSONArray("errors").put(e.getClass() + " - " + e.getMessage()));
         }
 
-        ArrayList<String> arrayStrings = new ArrayList<String>();
-        arrayStrings.add("H|header-data0|header-data1|header-data2");
-        arrayStrings.add("D|type0|data0-1|data0-2|data0-3|data0-4|data0-5");
-        arrayStrings.add("D|type1|data1-1|data1-2");
-        arrayStrings.add("D|type2|data2-1|data2-2|data2-3|data2-4|data2-5|data2-6");
-        arrayStrings.add("T|10100||2023-05-04|trailer-data3");
+        csvTypeMap.forEach((key, value) -> {
+            StringBuilder stringBuilder = new StringBuilder();
+            value.forEach(line -> {
+                stringBuilder.append(line).append(System.lineSeparator());
+            });
+            // Parse rows for a particular rowType (ie. bean)
+            logger.info("Parsing rows for type: " + key);
+            try {
+                Class<?> clazz = Class.forName(key);
+                Reader reader = new StringReader(stringBuilder.toString());
 
-        StringBuilder stringBuilder = new StringBuilder();
-        arrayStrings.forEach(line -> stringBuilder.append(line).append(System.lineSeparator()));
+                CsvToBean<Object> beans = new CsvToBeanBuilder(reader)
+                        .withSeparator('|') // or any other separator you are using
+                        .withType(clazz)
+                        .withThrowExceptions(false)
+                        .build();
 
-        Reader reader = new StringReader(stringBuilder.toString());
+                List<Object> parsedBeans = beans.parse();
 
-        final CsvToBean<TrailerBean> beans = new CsvToBeanBuilder(reader)
-                .withSeparator('|') // or any other separator you are using
-                .withType(TrailerBean.class)
-                .withThrowExceptions(false)
-                .build();
+                parsedBeans.stream().forEach((bean) -> {
+                    logger.info("  > Parsed data for type [" + key + "]:" + bean.toString());
+                });
 
-        // final CsvToBean<TrailerBean> beans = new CsvToBeanBuilder(
-        // new FileReader(new
-        // File(CSVValidator.class.getClassLoader().getResource(csvFileName).getPath())))
-        // .withSeparator('|') // or any other separator you are using
-        // .withType(TrailerBean.class)
-        // .withThrowExceptions(false)
-        // .build();
+                beans.getCapturedExceptions().stream().forEach((exception) -> {
+                    logger.error(
+                            "  > Incosistent data in row: " + exception.getLineNumber() + " -> "
+                                    + exception.getMessage());
+                });
+            } catch (ClassNotFoundException e) {
+                logger.error("Exception: " + e.getClass() + " - " + e.getMessage());
+                result.put("status", "FAIL");
+                result.put("errors", result.getJSONArray("errors").put(e.getClass() + " - " + e.getMessage()));
 
-        final List<TrailerBean> trailers = beans.parse();
-
-        trailers.stream().forEach((bean) -> {
-            logger.info("Parsed data: " + bean.toString());
-        });
-
-        beans.getCapturedExceptions().stream().forEach((exception) -> {
-            logger.error("Incosistent data in row: " + exception.getLineNumber() + " -> " + exception.getMessage());
+            }
         });
     }
 }
